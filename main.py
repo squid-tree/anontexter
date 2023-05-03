@@ -14,7 +14,6 @@
 import scripts
 import settings 
 import pgpy 
-import date
 import fabric
 
 # Get the pgp keys 
