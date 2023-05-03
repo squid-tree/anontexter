@@ -92,7 +92,7 @@ while True:
 
     print('Posting Message to Server ...')
     try:
-        conn.run(str("echo \'%s\' > %s/%s" % (msg, messagesdirectory, filename)
+        conn.run(str("echo \'%s\' > %s/%s" % (msg, messagesdirectory, filename)))
     except:
         print("There was an error")
     else:
