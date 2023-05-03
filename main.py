@@ -11,19 +11,21 @@
 # if someone were to somehow hack into it all information would be encrypted
 
 ### CLIENT MODE ### 
-import scripts
 import settings 
 import pgpy 
 import fabric
+import os
+
+pwd = os.path.dirname(os.path.realpath(__file__))
 
 # Get the pgp keys 
-with open('recipientkey.txt', 'r') as file:
-    recpgp = file.read()
-with open('userkey.txt', 'r') as file:
-    usrpgp = file.read()
+#with open(str('%s/settings/recipientkey.txt' % pwd), 'r') as file:
+#    recpgp = file.read()
+#with open(, 'r') as file:
+#    usrpgp = file.read()
 
-recpgp = pgpy.PGPkey.from_blob(recpgp)
-usrpgp = pgpy.PGPkey.from_blob(usrpgp)
+recpgp = pgpy.PGPKey.from_file(str('%s/settings/userkey.txt' % pwd))
+usrpgp = pgpy.PGPKey.from_file(str('%s/settings/userkey.txt' % pwd))
 
 while True:
     password = input("Password for your private pgp key: ")
