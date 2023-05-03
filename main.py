@@ -73,6 +73,7 @@ for i in filemessages:
     try: 
         decryptmsg = usrpgp.decrypt(msg).message
     except:
+        print("")
     else:
         print ("%s  %s" % (i, filemessages[i]))
         print('\n')
