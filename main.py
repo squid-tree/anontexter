@@ -1,99 +1,96 @@
-### DESIGN ### 
-##  Script Design ##
-# A server listens for an encrypted input, which the intended user can then request
-# and translate
-## Security Design ##
-# Each user should have their own individual set of pgp keys, which the server 
-# doesn't have access to. When a user requests messages, the local client should
-# only take those messages that can be translated with their key. Users should b 
-# able to specify a key before starting the program, which their messages will then
-# be translated too. It's important that the server plays a passive role and thus
-# if someone were to somehow hack into it all information would be encrypted
-
-### CLIENT MODE ### 
 import settings 
 import pgpy 
 import fabric
 import os
+import multiprocessing
+from pgpy import PGPKey
+import inspect
+from fabric import Connection
+from settings.settings import * 
+from datetime import datetime
 
 pwd = os.path.dirname(os.path.realpath(__file__))
 
-# Get the pgp keys 
-#with open(str('%s/settings/recipientkey.txt' % pwd), 'r') as file:
-#    recpgp = file.read()
-#with open(, 'r') as file:
-#    usrpgp = file.read()
+recpgp = PGPKey()
+usrpgp = PGPKey()
+usrpgp.unlock('test')
 
-recpgp = pgpy.PGPKey.from_file(str('%s/settings/userkey.txt' % pwd))
-usrpgp = pgpy.PGPKey.from_file(str('%s/settings/userkey.txt' % pwd))
+recpgp = PGPKey.from_file(str('%s/settings/recipientkey.asc' % pwd))
+usrpgp = PGPKey.from_file(str('%s/settings/userkey.asc' % pwd))
+
+usrpgp = usrpgp[0]
 
 while True:
-    password = input("Password for your private pgp key: ")
+    password = input(str("Password for your secret pgp key: "))
     try:
         usrpgp.unlock(password)
-    except PGPDecryptionError:
+    except pgpy.errors.PGPDecryptionError:
         print("The password was wrong, try again")
         continue
-    except:
-        print("Something went wrong, try again")
+    except Exception as e:
+        print(repr(e))
         continue
     else:
         print("Password was correct, messages may now be encrypted")
         break
 
-# Get connection details for server
-from fabric import Connection
-from anontexter.settings.settings import * 
-
 while True:
     pwd = input("Password for the server: ")
     try:
-        conn = Connection(host=sshhost, user=sshuser, port=sshport, connect_kwargs={'password': pwd})
+        conn = fabric.Connection(host=sshhost, user=sshuser, port=sshport, connect_kwargs={'password': pwd}, connect_timeout=5)
+    except TimeoutError:
+        print("Timed out: dets might be wrong")
+        continue
     except:
         print("There was an error connecting with that password, try again")
         continue
     else:
-        break
+        try:
+            messagelist = conn.run('ls %s' % messagesdirectory).stdout
+        except:
+            print("Timed out (password or other dets might be wrong")
+            continue
+        else:
+            break
 
-# Get messages from server
-messagelist = conn.run('ls %s' % messagesdirectory)
-
-filelist=messagelist.stdout.splitlines()
+filelist=messagelist.splitlines()
 filelist.sort()
-
 filemessages={}
 
 for i in filelist:
-    msgcat = conn.run('cat %s/%s' % (messagesdirectory,i))
+    try:
+        msgcat = conn.run('cat \'%s\'/\'%s\'' % (messagesdirectory,i))
+    except TimeoutError:
+        print("Timed out (password or other dets might be wrong)")
+        quit()
     filemessages[i] = msgcat.stdout
 
-# Display messages chronologically
+os.system('clear')
+
 print("Loading decryptable messages from server ... ")
 for i in filemessages:
-    msg = pgpy.PGPMessage.new(filemessages[i])
+    msg = pgpy.PGPMessage.from_blob(filemessages[i])
     try: 
-        decryptmsg = usrpgp.decrypt(msg).message
-    except:
-        print("")
+        with usrpgp.unlock(password):
+            decryptmsg = usrpgp.decrypt(msg).message
+    except Exception as e:
+        print("%sUnencryptable message(Could be made by you or another message not intended towards you" % i)
+        continue
     else:
-        print ("%s  %s" % (i, filemessages[i]))
-        print('\n')
-
-# Allow the user to input more messages to the server
-
-from datetime import datetime
+        print ("%s  %s" % (i, decryptmsg))
 
 while True:
-    message = PGPMessage.new(input("> "))
+    message = pgpy.PGPMessage.new(input("> "))
     
     filename = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
     print('Encrypting Message ... ')
-    msg = recpgp.encrypt(message)
+    print(recpgp[0])
+    msg = recpgp[0].encrypt(message)
 
     print('Posting Message to Server ...')
     try:
-        conn.run(str("echo \'%s\' > %s/%s" % (msg, messagesdirectory, filename)))
+        conn.run(str("echo \'%s\' > %s/\'%s\'" % (msg, messagesdirectory, filename)))
     except:
         print("There was an error")
     else:
